@@ -1,5 +1,5 @@
 /* =============================================================================
-   PDFy – Storage Module
+   PidiFie – Storage Module
    Manages all persistence via IndexedDB:
      - Recent files list (name, last page, date opened)
      - Annotation data per file

@@ -1,5 +1,5 @@
 /* =============================================================================
-   PDFy – Page Tools Module
+   PidiFie – Page Tools Module
    Handles structural PDF operations using pdf-lib:
      - Rotate page (CW / CCW)
      - Delete page

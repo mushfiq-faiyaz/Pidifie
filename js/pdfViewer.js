@@ -1,9 +1,10 @@
 /* =============================================================================
-   PDFy – PDF Viewer Module
+   PidiFie – PDF Viewer Module
    Renders a PDF document using PDF.js. Responsibilities:
      - Loading PDF bytes and rendering pages to <canvas> elements
      - Managing zoom (fit-width, fit-page, percentage)
-     - Generating thumbnail previews in the sidebar
+     - Generating thumbnail previews in the side panel
+     - Document bookmarks outline rendering
      - Smooth scrolling / page navigation
      - Exposing the visible page index for annotations and history
    ============================================================================= */
@@ -61,7 +62,7 @@ const PdfViewer = (() => {
     const countEl = document.getElementById('sidebar-page-count');
     if (countEl) countEl.textContent = total;
 
-    // Update total pages display
+    // Update total pages display in topbar
     const totalEl = document.getElementById('total-pages');
     if (totalEl) totalEl.textContent = total;
 
@@ -91,6 +92,9 @@ const PdfViewer = (() => {
 
     // Render thumbnails
     _renderThumbnails();
+
+    // Render bookmarks outline
+    _renderBookmarks();
 
     // Jump to saved page
     const clampedPage = Math.min(Math.max(startPage, 1), total);
@@ -431,6 +435,45 @@ const PdfViewer = (() => {
     setZoom(prev || 0.25);
   }
 
+  // ── Bookmarks ─────────────────────────────────────────────────────────────
+  async function _renderBookmarks() {
+    const container = document.getElementById('bookmarks-container');
+    if (!container || !_pdfDoc) return;
+    try {
+      const outline = await _pdfDoc.getOutline();
+      if (!outline || outline.length === 0) {
+        container.innerHTML = '<p class="panel-empty-hint">No bookmarks in this document.</p>';
+        return;
+      }
+      container.innerHTML = '';
+      for (const item of outline) {
+        const bEl = document.createElement('div');
+        bEl.className = 'bookmark-item';
+        bEl.innerHTML = `
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+          <span>${item.title}</span>
+        `;
+        bEl.addEventListener('click', async () => {
+          try {
+            let dest = item.dest;
+            if (typeof dest === 'string') {
+              dest = await _pdfDoc.getDestination(dest);
+            }
+            if (dest && Array.isArray(dest)) {
+              const pageIndex = await _pdfDoc.getPageIndex(dest[0]);
+              goToPage(pageIndex + 1);
+            }
+          } catch (err) {
+            console.warn('Could not jump to bookmark destination:', err);
+          }
+        });
+        container.appendChild(bEl);
+      }
+    } catch (e) {
+      container.innerHTML = '<p class="panel-empty-hint">No bookmarks in this document.</p>';
+    }
+  }
+
   // ── Navigation ────────────────────────────────────────────────────────────
   function goToPage(pageNum) {
     if (!_pdfDoc) return;
@@ -450,7 +493,7 @@ const PdfViewer = (() => {
   function _updateCurrentPage(pageNum) {
     _currentPage = pageNum;
 
-    // Update input
+    // Update topbar input
     const input = document.getElementById('page-num-input');
     if (input) input.value = pageNum;
 

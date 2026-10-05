@@ -1,6 +1,6 @@
 {
-  "name": "PDFy – PDF Reader & Editor",
-  "short_name": "PDFy",
+  "name": "PidiFie – PDF Reader & Editor",
+  "short_name": "PidiFie",
   "description": "A professional, privacy-first PDF reader and editor. Everything stays in your browser.",
   "start_url": "/",
   "display": "standalone",

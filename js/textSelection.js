@@ -1,5 +1,5 @@
 /* =============================================================================
-   PDFy – Text Selection & Markup Module
+   PidiFie – Text Selection & Markup Module
    Provides:
      - PDF.js text layer rendering (real selectable text on each page)
      - Floating toolbar on text selection (Highlight, Underline, Strikethrough,

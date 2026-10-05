@@ -1,5 +1,5 @@
 /* =============================================================================
-   PDFy – Annotations Module
+   PidiFie – Annotations Module
    Manages Fabric.js canvas overlays per page for all annotation types:
      - Highlight, underline, strikethrough (drag-drawn colored rectangles)
      - Freehand pen drawing

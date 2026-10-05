@@ -1,5 +1,5 @@
 /* =============================================================================
-   PDFy – Search Module
+   PidiFie – Search Module
    Text search within a rendered PDF using PDF.js text content.
    Highlights all matches; allows prev/next navigation.
    ============================================================================= */

@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="PDFy – A professional, privacy-first PDF reader and editor." />
-  <title>PDFy – PDF Reader &amp; Editor</title>
+  <meta name="description" content="PidiFie – A professional, privacy-first PDF reader and editor." />
+  <title>PidiFie – PDF Reader &amp; Editor</title>
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" type="image/svg+xml" href="icons/favicon.svg" />
   <!-- PDF.js text-layer styles (required for selectable text rendering) -->
@@ -53,8 +53,8 @@
           </defs>
         </svg>
       </div>
-      <h1 class="welcome-logo__name">PDFy</h1>
-      <p class="welcome-logo__tagline">Your private PDF workspace</p>
+      <h1 class="welcome-logo__name">PidiFie</h1>
+      <p class="welcome-logo__tagline">Your private, modern PDF workspace</p>
 
       <div class="welcome-actions">
         <button id="btn-open-welcome" class="btn btn--primary btn--lg">
@@ -84,13 +84,13 @@
   ═══════════════════════════════════════════════════════════════ -->
   <div id="app" class="app" style="display:none">
 
-    <!-- ── TOP TOOLBAR ──────────────────────────────────────── -->
+    <!-- ── 1. TOP TOOLBAR (ONE SLIM ROW ONLY) ────────────────── -->
     <header class="toolbar" role="toolbar" aria-label="Main toolbar">
 
-      <!-- Left group: Logo + File actions -->
+      <!-- Left side: App Logo + Name, Open, Save, Print -->
       <div class="toolbar__group toolbar__group--left">
-        <div class="toolbar__logo" title="PDFy">
-          <svg width="28" height="28" viewBox="0 0 72 72" fill="none">
+        <div class="toolbar__logo" title="PidiFie">
+          <svg width="26" height="26" viewBox="0 0 72 72" fill="none">
             <rect width="72" height="72" rx="16" fill="url(#tb-logo-grad)"/>
             <rect x="16" y="10" width="30" height="38" rx="3" fill="white" opacity="0.9"/>
             <rect x="26" y="24" width="22" height="28" rx="3" fill="white" opacity="0.95"/>
@@ -103,7 +103,7 @@
               </linearGradient>
             </defs>
           </svg>
-          <span class="toolbar__logo-text">PDFy</span>
+          <span class="toolbar__logo-text">PidiFie</span>
         </div>
 
         <div class="toolbar__divider"></div>
@@ -117,29 +117,9 @@
         <button id="btn-print" class="tb-btn" title="Print (Ctrl+P)" data-tooltip="Print">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
         </button>
-
-        <div class="toolbar__divider"></div>
-
-        <!-- Page tools dropdown -->
-        <div class="tb-dropdown" id="page-tools-dropdown">
-          <button class="tb-btn tb-btn--text" id="btn-page-tools" data-tooltip="Page Tools">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-            <span>Pages</span>
-            <svg class="chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
-          </button>
-          <div class="tb-dropdown__menu" id="page-tools-menu">
-            <button class="tb-dropdown__item" id="btn-rotate-cw">↻ Rotate Page CW</button>
-            <button class="tb-dropdown__item" id="btn-rotate-ccw">↺ Rotate Page CCW</button>
-            <div class="tb-dropdown__sep"></div>
-            <button class="tb-dropdown__item" id="btn-delete-page">🗑 Delete Page</button>
-            <div class="tb-dropdown__sep"></div>
-            <button class="tb-dropdown__item" id="btn-merge-pdf">⊕ Merge PDFs…</button>
-            <button class="tb-dropdown__item" id="btn-split-pdf">✂ Split / Extract…</button>
-          </div>
-        </div>
       </div>
 
-      <!-- Center group: Navigation + Zoom -->
+      <!-- Middle: Navigation & Zoom -->
       <div class="toolbar__group toolbar__group--center">
         <button id="btn-prev" class="tb-btn" title="Previous page" data-tooltip="Prev page">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
@@ -157,7 +137,7 @@
 
         <div class="toolbar__divider"></div>
 
-        <button id="btn-zoom-out" class="tb-btn" title="Zoom out" data-tooltip="Zoom out">
+        <button id="btn-zoom-out" class="tb-btn" title="Zoom out (Ctrl+-)" data-tooltip="Zoom out">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
         </button>
 
@@ -180,40 +160,26 @@
           </div>
         </div>
 
-        <button id="btn-zoom-in" class="tb-btn" title="Zoom in" data-tooltip="Zoom in">
+        <button id="btn-zoom-in" class="tb-btn" title="Zoom in (Ctrl++)" data-tooltip="Zoom in">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
         </button>
       </div>
 
-      <!-- Right group: Search + View + Theme -->
+      <!-- Right side: Undo, Redo, Search icon, Dark/Light mode, Close file -->
       <div class="toolbar__group toolbar__group--right">
-
-        <!-- Search -->
-        <div class="search-bar" id="search-bar">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input id="search-input" type="text" placeholder="Search…" aria-label="Search text in PDF" />
-          <div class="search-bar__nav">
-            <span id="search-count" class="search-count"></span>
-            <button id="btn-search-prev" class="tb-btn tb-btn--sm" title="Previous result">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
-            </button>
-            <button id="btn-search-next" class="tb-btn tb-btn--sm" title="Next result">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
-            </button>
-            <button id="btn-search-close" class="tb-btn tb-btn--sm" title="Close search">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            </button>
-          </div>
-        </div>
-        <button id="btn-search-open" class="tb-btn" title="Search (Ctrl+F)" data-tooltip="Search">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <!-- Undo / Redo -->
+        <button class="tb-btn" id="btn-undo" title="Undo (Ctrl+Z)" data-tooltip="Undo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
+        </button>
+        <button class="tb-btn" id="btn-redo" title="Redo (Ctrl+Shift+Z)" data-tooltip="Redo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 14 20 9 15 4"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg>
         </button>
 
         <div class="toolbar__divider"></div>
 
-        <!-- Sidebar toggle -->
-        <button id="btn-sidebar" class="tb-btn" title="Toggle sidebar" data-tooltip="Sidebar" aria-pressed="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+        <!-- Single Search Trigger Icon (Opens Search Panel on the right) -->
+        <button id="btn-search-open" class="tb-btn" title="Search (Ctrl+F)" data-tooltip="Search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         </button>
 
         <!-- Theme toggle -->
@@ -222,6 +188,8 @@
           <svg id="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
         </button>
 
+        <div class="toolbar__divider"></div>
+
         <!-- Close file -->
         <button id="btn-close-file" class="tb-btn" title="Close file" data-tooltip="Close">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -229,123 +197,263 @@
       </div>
     </header>
 
-    <!-- ── ANNOTATION TOOLBAR ─────────────────────────────── -->
-    <div class="annotation-toolbar" id="annotation-toolbar" role="toolbar" aria-label="Annotation tools">
-
-      <button class="ann-btn" id="tool-select" title="Select / Move (V)" data-tool="select" aria-pressed="true">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3l14 9-7 1-4 6z"/></svg>
-        <span>Select</span>
-      </button>
-
-      <div class="ann-toolbar__sep"></div>
-
-      <button class="ann-btn" id="tool-highlight" title="Highlight text (H)" data-tool="highlight">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="14" width="18" height="4" rx="1"/><path d="M7 14V8a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v6" fill="currentColor" opacity=".3"/></svg>
-        <span>Highlight</span>
-      </button>
-
-      <button class="ann-btn" id="tool-underline" title="Underline text (U)" data-tool="underline">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 4v6a6 6 0 0 0 12 0V4"/><line x1="4" y1="20" x2="20" y2="20"/></svg>
-        <span>Underline</span>
-      </button>
-
-      <button class="ann-btn" id="tool-strikethrough" title="Strikethrough (S)" data-tool="strikethrough">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="12" x2="20" y2="12"/><path d="M8 6h8M8 18h8"/></svg>
-        <span>Strike</span>
-      </button>
-
-      <div class="ann-toolbar__sep"></div>
-
-      <button class="ann-btn" id="tool-pen" title="Freehand pen (P)" data-tool="pen">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
-        <span>Pen</span>
-      </button>
-
-      <button class="ann-btn" id="tool-text" title="Add text (T)" data-tool="text">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
-        <span>Text</span>
-      </button>
-
-      <button class="ann-btn" id="tool-note" title="Sticky note (N)" data-tool="note">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16l4-4h10a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2z"/></svg>
-        <span>Note</span>
-      </button>
-
-      <div class="ann-toolbar__sep"></div>
-
-      <button class="ann-btn" id="tool-sign" title="Signature (G)" data-tool="sign">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 20H7L3 8l3 4 3-6 3 8 2-4 2 2 4-10v18"/></svg>
-        <span>Sign</span>
-      </button>
-
-      <div class="ann-toolbar__sep"></div>
-
-      <!-- Color picker -->
-      <div class="color-picker" id="color-picker" title="Annotation color">
-        <div class="color-swatch active" data-color="#FFEB3B" style="background:#FFEB3B" title="Yellow"></div>
-        <div class="color-swatch" data-color="#4CAF50" style="background:#4CAF50" title="Green"></div>
-        <div class="color-swatch" data-color="#2196F3" style="background:#2196F3" title="Blue"></div>
-        <div class="color-swatch" data-color="#F44336" style="background:#F44336" title="Red"></div>
-        <div class="color-swatch" data-color="#9C27B0" style="background:#9C27B0" title="Purple"></div>
-        <div class="color-swatch" data-color="#FF9800" style="background:#FF9800" title="Orange"></div>
-        <input type="color" id="custom-color" title="Custom color" />
-      </div>
-
-      <!-- Pen thickness (shown only for pen tool) -->
-      <div class="pen-options" id="pen-options" style="display:none">
-        <label for="pen-size" class="pen-options__label">Size</label>
-        <input type="range" id="pen-size" min="1" max="20" value="3" class="pen-options__slider" />
-        <span id="pen-size-label" class="pen-options__val">3px</span>
-      </div>
-
-      <!-- Font size (shown for text tool) -->
-      <div class="font-options" id="font-options" style="display:none">
-        <label for="font-size" class="font-options__label">Size</label>
-        <select id="font-size" class="font-options__select">
-          <option value="12">12</option>
-          <option value="14">14</option>
-          <option value="16" selected>16</option>
-          <option value="18">18</option>
-          <option value="24">24</option>
-          <option value="32">32</option>
-          <option value="48">48</option>
-        </select>
-      </div>
-
-      <div class="ann-toolbar__spacer"></div>
-
-      <!-- Undo / Redo -->
-      <button class="ann-btn" id="btn-undo" title="Undo (Ctrl+Z)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
-        <span>Undo</span>
-      </button>
-      <button class="ann-btn" id="btn-redo" title="Redo (Ctrl+Shift+Z)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 14 20 9 15 4"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg>
-        <span>Redo</span>
-      </button>
-
-      <button class="ann-btn ann-btn--danger" id="btn-delete-selection" title="Delete selected annotation (Del)" style="display:none">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
-        <span>Delete</span>
-      </button>
-    </div>
-
-    <!-- ── MAIN CONTENT AREA ─────────────────────────────────── -->
+    <!-- ── 2. MAIN WORKSPACE CONTENT AREA ────────────────────── -->
     <div class="content-area" id="content-area">
 
-      <!-- Left Sidebar: Thumbnails -->
-      <aside class="sidebar" id="sidebar" aria-label="Page thumbnails">
-        <div class="sidebar__header">
-          <span>Pages</span>
-          <span id="sidebar-page-count" class="sidebar__count"></span>
+      <!-- ── LEFT SIDE: SLIM VERTICAL TOOL STRIP ─────────────── -->
+      <aside class="left-tool-strip" id="left-tool-strip" aria-label="Markup tools">
+        <div class="tool-strip-pill">
+          <!-- Select / Move -->
+          <button class="strip-tool-btn active" id="tool-select" data-tool="select" title="Select / Move (V)" data-tooltip="Select (V)" aria-pressed="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3l14 9-7 1-4 6z"/></svg>
+          </button>
+
+          <div class="strip-divider"></div>
+
+          <!-- Highlight -->
+          <button class="strip-tool-btn" id="tool-highlight" data-tool="highlight" title="Highlight text (H)" data-tooltip="Highlight (H)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="14" width="18" height="4" rx="1"/><path d="M7 14V8a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v6" fill="currentColor" opacity=".35"/></svg>
+            <span class="tool-color-dot" id="dot-highlight"></span>
+          </button>
+
+          <!-- Underline -->
+          <button class="strip-tool-btn" id="tool-underline" data-tool="underline" title="Underline text (U)" data-tooltip="Underline (U)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 4v6a6 6 0 0 0 12 0V4"/><line x1="4" y1="20" x2="20" y2="20"/></svg>
+            <span class="tool-color-dot" id="dot-underline"></span>
+          </button>
+
+          <!-- Strikethrough -->
+          <button class="strip-tool-btn" id="tool-strikethrough" data-tool="strikethrough" title="Strikethrough (S)" data-tooltip="Strike (S)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="12" x2="20" y2="12"/><path d="M8 6h8M8 18h8"/></svg>
+            <span class="tool-color-dot" id="dot-strikethrough"></span>
+          </button>
+
+          <div class="strip-divider"></div>
+
+          <!-- Pen -->
+          <button class="strip-tool-btn" id="tool-pen" data-tool="pen" title="Freehand Pen (P)" data-tooltip="Pen (P)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+            <span class="tool-color-dot" id="dot-pen"></span>
+          </button>
+
+          <!-- Text -->
+          <button class="strip-tool-btn" id="tool-text" data-tool="text" title="Add Text (T)" data-tooltip="Text (T)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
+            <span class="tool-color-dot" id="dot-text"></span>
+          </button>
+
+          <!-- Note -->
+          <button class="strip-tool-btn" id="tool-note" data-tool="note" title="Sticky Note (N)" data-tooltip="Note (N)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16l4-4h10a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2z"/></svg>
+          </button>
+
+          <div class="strip-divider"></div>
+
+          <!-- Signature -->
+          <button class="strip-tool-btn" id="tool-sign" data-tool="sign" title="Signature (G)" data-tooltip="Sign (G)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 20H7L3 8l3 4 3-6 3 8 2-4 2 2 4-10v18"/></svg>
+          </button>
         </div>
-        <div class="sidebar__body" id="thumbnail-container"></div>
+
+        <!-- ── TOOL OPTIONS POPOVER / FLYOUT ────────────────── -->
+        <div class="tool-options-popover" id="tool-options-popover" style="display:none">
+          <div class="popover-content">
+            <!-- Active tool title -->
+            <div class="popover-header">
+              <span id="popover-tool-title">Tool Options</span>
+            </div>
+
+            <!-- Color Palette -->
+            <div class="color-picker-section" id="popover-color-section">
+              <span class="section-label">Color</span>
+              <div class="color-picker" id="color-picker">
+                <div class="color-swatch active" data-color="#FFEB3B" style="background:#FFEB3B" title="Yellow"></div>
+                <div class="color-swatch" data-color="#4CAF50" style="background:#4CAF50" title="Green"></div>
+                <div class="color-swatch" data-color="#2196F3" style="background:#2196F3" title="Blue"></div>
+                <div class="color-swatch" data-color="#F44336" style="background:#F44336" title="Red"></div>
+                <div class="color-swatch" data-color="#9C27B0" style="background:#9C27B0" title="Purple"></div>
+                <div class="color-swatch" data-color="#FF9800" style="background:#FF9800" title="Orange"></div>
+                <label class="custom-color-wrap" title="Custom color">
+                  <input type="color" id="custom-color" />
+                </label>
+              </div>
+            </div>
+
+            <!-- Pen thickness -->
+            <div class="pen-options" id="pen-options" style="display:none">
+              <span class="section-label">Thickness</span>
+              <div class="slider-row">
+                <input type="range" id="pen-size" min="1" max="20" value="3" class="pen-options__slider" />
+                <span id="pen-size-label" class="pen-options__val">3px</span>
+              </div>
+            </div>
+
+            <!-- Font size -->
+            <div class="font-options" id="font-options" style="display:none">
+              <span class="section-label">Font Size</span>
+              <select id="font-size" class="font-options__select">
+                <option value="12">12 px</option>
+                <option value="14">14 px</option>
+                <option value="16" selected>16 px</option>
+                <option value="18">18 px</option>
+                <option value="24">24 px</option>
+                <option value="32">32 px</option>
+                <option value="48">48 px</option>
+              </select>
+            </div>
+
+            <!-- Delete Selection -->
+            <div class="delete-selection-wrap" id="delete-selection-wrap" style="display:none">
+              <button class="btn-delete-popover" id="btn-delete-selection" title="Delete selected annotation (Del)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+                <span>Delete Annotation</span>
+              </button>
+            </div>
+          </div>
+        </div>
       </aside>
 
-      <!-- Document Viewer -->
+      <!-- ── CENTER: DOCUMENT VIEWER ─────────────────────────── -->
       <main class="viewer" id="viewer" tabindex="0" aria-label="PDF document viewer">
         <div id="pages-container" class="pages-container"></div>
       </main>
+
+      <!-- ── 3. RIGHT SIDE: SLIDE-IN PANEL ───────────────────── -->
+      <aside class="side-panel collapsed" id="side-panel" aria-label="Side panel">
+        <div class="side-panel__header">
+          <span class="side-panel__title" id="side-panel-title">Page Previews</span>
+          <button class="side-panel__close" id="btn-side-panel-close" title="Close panel" aria-label="Close side panel">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+
+        <div class="side-panel__body">
+          <!-- View 1: Page Thumbnails -->
+          <div class="panel-view" id="panel-view-thumbnails">
+            <div class="panel-view__subhead">
+              <span>Pages</span>
+              <span id="sidebar-page-count" class="sidebar__count">0</span>
+            </div>
+            <div class="thumbnail-container" id="thumbnail-container"></div>
+          </div>
+
+          <!-- View 2: Page Tools (Rotate, Delete, Split, Merge) -->
+          <div class="panel-view" id="panel-view-tools" style="display:none">
+            <div class="page-tools-list">
+              <div class="tool-section">
+                <div class="tool-section__title">Current Page</div>
+                <div class="tool-action-group">
+                  <button class="panel-tool-card" id="btn-rotate-cw">
+                    <div class="panel-tool-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                    </div>
+                    <div class="panel-tool-info">
+                      <span class="panel-tool-name">Rotate 90° Clockwise</span>
+                      <span class="panel-tool-desc">Rotate the current page right</span>
+                    </div>
+                  </button>
+
+                  <button class="panel-tool-card" id="btn-rotate-ccw">
+                    <div class="panel-tool-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+                    </div>
+                    <div class="panel-tool-info">
+                      <span class="panel-tool-name">Rotate 90° CCW</span>
+                      <span class="panel-tool-desc">Rotate the current page left</span>
+                    </div>
+                  </button>
+
+                  <button class="panel-tool-card panel-tool-card--danger" id="btn-delete-page">
+                    <div class="panel-tool-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+                    </div>
+                    <div class="panel-tool-info">
+                      <span class="panel-tool-name">Delete Page</span>
+                      <span class="panel-tool-desc">Remove current page from PDF</span>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              <div class="tool-section">
+                <div class="tool-section__title">Document Operations</div>
+                <div class="tool-action-group">
+                  <button class="panel-tool-card" id="btn-split-pdf">
+                    <div class="panel-tool-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>
+                    </div>
+                    <div class="panel-tool-info">
+                      <span class="panel-tool-name">Split / Extract Pages</span>
+                      <span class="panel-tool-desc">Extract specific pages or page ranges</span>
+                    </div>
+                  </button>
+
+                  <button class="panel-tool-card" id="btn-merge-pdf">
+                    <div class="panel-tool-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+                    </div>
+                    <div class="panel-tool-info">
+                      <span class="panel-tool-name">Merge PDFs…</span>
+                      <span class="panel-tool-desc">Combine other files into this document</span>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- View 3: Search in Document -->
+          <div class="panel-view" id="panel-view-search" style="display:none">
+            <div class="panel-search-box">
+              <div class="search-input-wrap">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input id="side-search-input" type="text" placeholder="Search in document…" aria-label="Search in PDF" />
+              </div>
+              <div class="side-search-controls">
+                <span id="side-search-count" class="search-count"></span>
+                <div class="side-search-btns">
+                  <button id="btn-side-search-prev" class="tb-btn tb-btn--sm" title="Previous result (Shift+Enter)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+                  </button>
+                  <button id="btn-side-search-next" class="tb-btn tb-btn--sm" title="Next result (Enter)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="side-search-results" id="side-search-results">
+              <p class="panel-empty-hint">Type a word or phrase above to search inside this PDF.</p>
+            </div>
+          </div>
+
+          <!-- View 4: Bookmarks / Outline -->
+          <div class="panel-view" id="panel-view-bookmarks" style="display:none">
+            <div class="bookmarks-list" id="bookmarks-container">
+              <p class="panel-empty-hint">No bookmarks in this document.</p>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- ── 3. RIGHT SLIM ICON STRIP ────────────────────────── -->
+      <nav class="right-strip" id="right-strip" aria-label="Page and view tools">
+        <button class="strip-tab-btn" id="btn-tab-thumbnails" data-tab="thumbnails" title="Page previews" data-tooltip="Page Previews">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
+        </button>
+
+        <button class="strip-tab-btn" id="btn-tab-tools" data-tab="tools" title="Page tools" data-tooltip="Page Tools">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><circle cx="12" cy="14" r="2.5"/></svg>
+        </button>
+
+        <button class="strip-tab-btn" id="btn-tab-search" data-tab="search" title="Search" data-tooltip="Search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        </button>
+
+        <button class="strip-tab-btn" id="btn-tab-bookmarks" data-tab="bookmarks" title="Bookmarks" data-tooltip="Bookmarks">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+        </button>
+      </nav>
+
     </div>
   </div>
 

@@ -1,10 +1,10 @@
 /* =============================================================================
-   PDFy Service Worker
+   PidiFie Service Worker
    Provides offline capability and caching for the PWA.
    Strategy: Cache-first for static assets, network-first for CDN libraries.
    ============================================================================= */
 
-const CACHE_VERSION = 'pdfy-v3';
+const CACHE_VERSION = 'pidifie-v1';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const CDN_CACHE    = `${CACHE_VERSION}-cdn`;
 

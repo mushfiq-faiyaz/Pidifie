@@ -1,21 +1,23 @@
 /* =============================================================================
-   PDFy – App Controller
+   PidiFie – App Controller
    The main application coordinator. Wires together all modules:
      PdfViewer, Annotations, Signature, PageTools, Search, Storage.
    Also manages:
      - File open (button + drag & drop)
      - Theme toggle
-     - Toolbar event handlers
-     - Keyboard shortcuts
-     - PWA service worker registration
+     - Topbar & Left floating tool strip
+     - Right slim strip & slide-in side panel (Thumbnails, Tools, Search, Bookmarks)
+     - Keyboard shortcuts & PWA registration
      - Toast notifications
    ============================================================================= */
 
 const App = (() => {
   // ── State ─────────────────────────────────────────────────────────────────
-  let _theme        = 'dark';
-  let _sidebarOpen  = true;
-  let _searchOpen   = false;
+  let _theme          = 'dark';
+  let _sidePanelOpen  = false;
+  let _activeSideTab  = 'thumbnails'; // 'thumbnails' | 'tools' | 'search' | 'bookmarks'
+  let _activeTool     = 'select';
+  let _currentColor   = '#FFEB3B';
 
   // ── DOM refs ──────────────────────────────────────────────────────────────
   const el = id => document.getElementById(id);
@@ -33,9 +35,8 @@ const App = (() => {
     _theme = await Storage.getPref('theme', 'dark');
     _applyTheme(_theme);
 
-    // Restore sidebar preference
-    _sidebarOpen = (await Storage.getPref('sidebar', 'open')) === 'open';
-    _setSidebar(_sidebarOpen);
+    // Initial side panel state: closed for a calm, clean workspace
+    _setSidePanel(false);
 
     // Init signature module
     Signature.init();
@@ -47,18 +48,18 @@ const App = (() => {
     _bindFileOpen();
     _bindDragDrop();
     _bindToolbar();
-    _bindAnnotationToolbar();
+    _bindLeftToolBar();
+    _bindRightSidePanel();
     _bindModals();
     _bindKeyboard();
     _bindColorPicker();
-    _bindSearchBar();
-    _bindPageTools();
+    _bindPageToolsActions();
     _bindAnnotationEvents();
   }
 
   // ── File open ─────────────────────────────────────────────────────────────
   function _bindFileOpen() {
-    // Button in toolbar
+    // Buttons to open file
     el('btn-open').addEventListener('click', () => el('file-input').click());
     el('btn-open-welcome').addEventListener('click', () => el('file-input').click());
 
@@ -111,7 +112,7 @@ const App = (() => {
       });
 
       // Update window title
-      document.title = file.name + ' – PDFy';
+      document.title = file.name + ' – PidiFie';
 
       // Record in recent files
       await Storage.touchRecentFile(file.name, startPage, PdfViewer.getTotalPages());
@@ -130,17 +131,14 @@ const App = (() => {
   function _closeFile() {
     el('app').style.display            = 'none';
     el('welcome-screen').style.display = 'flex';
-    document.title = 'PDFy – PDF Reader & Editor';
+    document.title = 'PidiFie – PDF Reader & Editor';
+    _setSidePanel(false);
     _loadRecentFiles();
   }
 
   // ── Page change callback ───────────────────────────────────────────────────
   let _saveTimer = null;
   function _onPageChange(pageNum, total, fileName) {
-    // Update toolbar page input
-    const input = el('page-num-input');
-    if (input) input.value = pageNum;
-
     // Debounce: save progress every 2 seconds
     if (_saveTimer) clearTimeout(_saveTimer);
     _saveTimer = setTimeout(async () => {
@@ -178,7 +176,7 @@ const App = (() => {
     });
   }
 
-  // ── Top toolbar ───────────────────────────────────────────────────────────
+  // ── 1. Top toolbar ────────────────────────────────────────────────────────
   function _bindToolbar() {
     // Navigation
     el('btn-prev').addEventListener('click', () => PdfViewer.prevPage());
@@ -204,18 +202,22 @@ const App = (() => {
       });
     });
 
-    // Save
+    // Save & Print
     el('btn-save').addEventListener('click', _savePdf);
-
-    // Print
     el('btn-print').addEventListener('click', () => window.print());
 
-    // Sidebar toggle
-    el('btn-sidebar').addEventListener('click', () => {
-      _sidebarOpen = !_sidebarOpen;
-      _setSidebar(_sidebarOpen);
-      Storage.setPref('sidebar', _sidebarOpen ? 'open' : 'closed');
+    // Undo / Redo in topbar
+    el('btn-undo').addEventListener('click', () => {
+      Annotations.undo(PdfViewer.getCurrentPage() - 1);
+      if (typeof TextSelection !== 'undefined') TextSelection.undo(PdfViewer.getCurrentPage() - 1);
     });
+    el('btn-redo').addEventListener('click', () => {
+      Annotations.redo(PdfViewer.getCurrentPage() - 1);
+      if (typeof TextSelection !== 'undefined') TextSelection.redo(PdfViewer.getCurrentPage() - 1);
+    });
+
+    // Top bar search button -> opens the dedicated search panel on the right
+    el('btn-search-open').addEventListener('click', _openSearchPanel);
 
     // Theme toggle
     el('btn-theme').addEventListener('click', () => {
@@ -225,16 +227,14 @@ const App = (() => {
     });
   }
 
-  // ── Annotation toolbar ────────────────────────────────────────────────────
-  function _bindAnnotationToolbar() {
-    // Tool buttons
-    const toolBtns = document.querySelectorAll('.ann-btn[data-tool]');
+  // ── 2. Left vertical tool strip ───────────────────────────────────────────
+  function _bindLeftToolBar() {
+    const toolBtns = document.querySelectorAll('.strip-tool-btn[data-tool]');
     toolBtns.forEach(btn => {
       btn.addEventListener('click', () => {
         const tool = btn.dataset.tool;
 
         if (tool === 'sign') {
-          // Check if we have a saved signature; if so give choice
           _handleSignatureTool();
           return;
         }
@@ -245,21 +245,18 @@ const App = (() => {
         if (textMarkupTools.includes(tool) && typeof TextSelection !== 'undefined') {
           const sel = window.getSelection();
           if (sel && !sel.isCollapsed && sel.toString().trim()) {
-            // Inject pageIndex by finding which wrapper the selection is in
             const anchor = sel.anchorNode;
             const wrappers = document.querySelectorAll('.page-wrapper');
             for (const w of wrappers) {
               if (w.contains(anchor)) {
                 const pi = parseInt(w.dataset.pageIndex);
                 if (!isNaN(pi)) {
-                  // Temporarily set the toolbar's data-page-index so applyMarkup knows
                   const tbEl = document.querySelector('.text-sel-toolbar');
                   if (tbEl) tbEl.dataset.pageIndex = pi;
                 }
                 break;
               }
             }
-            // Dispatch a synthetic toolbar click
             const tbBtn = document.querySelector(`.text-sel-toolbar [data-action="${tool}"]`);
             if (tbBtn) { tbBtn.click(); return; }
           }
@@ -270,17 +267,7 @@ const App = (() => {
       });
     });
 
-    // Undo / Redo
-    el('btn-undo').addEventListener('click', () => {
-      Annotations.undo(PdfViewer.getCurrentPage() - 1);
-      if (typeof TextSelection !== 'undefined') TextSelection.undo(PdfViewer.getCurrentPage() - 1);
-    });
-    el('btn-redo').addEventListener('click', () => {
-      Annotations.redo(PdfViewer.getCurrentPage() - 1);
-      if (typeof TextSelection !== 'undefined') TextSelection.redo(PdfViewer.getCurrentPage() - 1);
-    });
-
-    // Delete selection
+    // Delete selection button
     el('btn-delete-selection').addEventListener('click', () => {
       Annotations.deleteSelected(PdfViewer.getCurrentPage() - 1);
     });
@@ -297,23 +284,64 @@ const App = (() => {
       Annotations.setFontSize(parseInt(e.target.value));
     });
 
-    // Selection callback → show/hide delete button
+    // Selection callback → show/hide delete button and popover
     Annotations.setSelectionCallback(hasSelection => {
-      el('btn-delete-selection').style.display = hasSelection ? 'flex' : 'none';
+      const delWrap = el('delete-selection-wrap');
+      if (delWrap) delWrap.style.display = hasSelection ? 'block' : 'none';
+      if (hasSelection) {
+        el('tool-options-popover').style.display = 'block';
+      } else if (_activeTool === 'select') {
+        el('tool-options-popover').style.display = 'none';
+      }
     });
   }
 
   function _setActiveTool(tool) {
-    document.querySelectorAll('.ann-btn[data-tool]').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.tool === tool);
+    _activeTool = tool;
+
+    // Update active button state
+    document.querySelectorAll('.strip-tool-btn[data-tool]').forEach(btn => {
+      const isActive = btn.dataset.tool === tool;
+      btn.classList.toggle('active', isActive);
+      btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
     });
 
-    // Show/hide contextual options
-    el('pen-options').style.display  = tool === 'pen'  ? 'flex' : 'none';
-    el('font-options').style.display = tool === 'text' ? 'flex' : 'none';
+    // Update popover options
+    const popover     = el('tool-options-popover');
+    const titleEl     = el('popover-tool-title');
+    const colorSec    = el('popover-color-section');
+    const penOpt      = el('pen-options');
+    const fontOpt     = el('font-options');
+    const toolTitles  = {
+      select:        'Select / Move',
+      highlight:     'Highlight',
+      underline:     'Underline',
+      strikethrough: 'Strikethrough',
+      pen:           'Pen / Drawing',
+      text:          'Text Box',
+      note:          'Sticky Note',
+      sign:          'Signature',
+    };
+
+    if (titleEl) titleEl.textContent = toolTitles[tool] || 'Options';
+
+    // Show contextual options
+    const showColor = ['highlight', 'underline', 'strikethrough', 'pen', 'text'].includes(tool);
+    colorSec.style.display = showColor ? 'block' : 'none';
+    penOpt.style.display   = tool === 'pen' ? 'block' : 'none';
+    fontOpt.style.display  = tool === 'text' ? 'block' : 'none';
+
+    // Show popover for drawing/styling tools, hide for plain select (unless selection exists)
+    if (showColor || tool === 'note' || tool === 'sign') {
+      popover.style.display = 'block';
+    } else {
+      const delWrap = el('delete-selection-wrap');
+      if (!delWrap || delWrap.style.display === 'none') {
+        popover.style.display = 'none';
+      }
+    }
   }
 
-  // Listen for tool changes dispatched by other modules (e.g. after placing signature)
   function _bindAnnotationEvents() {
     document.addEventListener('pdfy:tool-changed', e => {
       _setActiveTool(e.detail);
@@ -333,10 +361,7 @@ const App = (() => {
 
     const saved = await Storage.loadSignature();
     if (saved) {
-      // Ask user: place saved or draw new
-      // For simplicity: if they click Sign tool with existing sig, use saved one
-      // They can clear from modal later
-      showToast('Click on the page to place your signature');
+      showToast('Click anywhere on page to place your saved signature');
     } else {
       Signature.openModal();
     }
@@ -348,78 +373,165 @@ const App = (() => {
       swatch.addEventListener('click', () => {
         document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
         swatch.classList.add('active');
-        Annotations.setColor(swatch.dataset.color);
-        if (typeof TextSelection !== 'undefined') TextSelection.setColor(swatch.dataset.color);
+        _updateColor(swatch.dataset.color);
       });
     });
 
     el('custom-color').addEventListener('input', e => {
       document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
-      Annotations.setColor(e.target.value);
-      if (typeof TextSelection !== 'undefined') TextSelection.setColor(e.target.value);
+      _updateColor(e.target.value);
     });
   }
 
-  // ── Search bar ────────────────────────────────────────────────────────────
-  function _bindSearchBar() {
-    el('btn-search-open').addEventListener('click', _openSearch);
-    el('btn-search-close').addEventListener('click', _closeSearch);
+  function _updateColor(color) {
+    _currentColor = color;
+    Annotations.setColor(color);
+    if (typeof TextSelection !== 'undefined') TextSelection.setColor(color);
 
-    let searchDebounce = null;
-    el('search-input').addEventListener('input', e => {
-      if (searchDebounce) clearTimeout(searchDebounce);
-      searchDebounce = setTimeout(async () => {
-        const { total, current } = await Search.search(e.target.value);
-        _updateSearchCount(current, total);
-      }, 300);
+    // Update color indicator dots under tool icons
+    ['dot-highlight', 'dot-underline', 'dot-strikethrough', 'dot-pen', 'dot-text'].forEach(id => {
+      const dot = el(id);
+      if (dot) dot.style.backgroundColor = color;
+    });
+  }
+
+  // ── 3. Right side panel & tabs ────────────────────────────────────────────
+  function _bindRightSidePanel() {
+    // Tab buttons in right slim strip
+    const tabBtns = document.querySelectorAll('.strip-tab-btn[data-tab]');
+    tabBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tab = btn.dataset.tab;
+        if (_sidePanelOpen && _activeSideTab === tab) {
+          // Toggle closed if clicking currently active tab
+          _setSidePanel(false);
+        } else {
+          _setActiveSideTab(tab);
+          _setSidePanel(true);
+        }
+      });
     });
 
-    el('search-input').addEventListener('keydown', e => {
+    // Close button inside side panel header
+    el('btn-side-panel-close').addEventListener('click', () => {
+      _setSidePanel(false);
+    });
+
+    // Search input inside Search panel
+    let sideSearchDebounce = null;
+    el('side-search-input').addEventListener('input', e => {
+      if (sideSearchDebounce) clearTimeout(sideSearchDebounce);
+      sideSearchDebounce = setTimeout(async () => {
+        const query = e.target.value;
+        const { total, current } = await Search.search(query);
+        _updateSideSearch(current, total, query);
+      }, 250);
+    });
+
+    el('side-search-input').addEventListener('keydown', e => {
       if (e.key === 'Enter') {
-        const { total, current } = Search.next();
-        _updateSearchCount(current, total);
+        const { total, current } = e.shiftKey ? Search.prev() : Search.next();
+        _updateSideSearch(current, total, el('side-search-input').value);
       } else if (e.key === 'Escape') {
-        _closeSearch();
+        _setSidePanel(false);
       }
     });
 
-    el('btn-search-prev').addEventListener('click', () => {
+    el('btn-side-search-prev').addEventListener('click', () => {
       const { total, current } = Search.prev();
-      _updateSearchCount(current, total);
+      _updateSideSearch(current, total, el('side-search-input').value);
     });
 
-    el('btn-search-next').addEventListener('click', () => {
+    el('btn-side-search-next').addEventListener('click', () => {
       const { total, current } = Search.next();
-      _updateSearchCount(current, total);
+      _updateSideSearch(current, total, el('side-search-input').value);
     });
   }
 
-  function _openSearch() {
-    _searchOpen = true;
-    el('search-bar').classList.add('open');
-    el('btn-search-open').style.display = 'none';
-    el('search-input').focus();
+  async function _openSearchPanel() {
+    _setActiveSideTab('search');
+    _setSidePanel(true);
+    setTimeout(async () => {
+      const input = el('side-search-input');
+      if (input) {
+        input.focus();
+        input.select();
+        const query = input.value.trim();
+        if (query) {
+          const { total, current } = await Search.search(query);
+          _updateSideSearch(current, total, query);
+        }
+      }
+    }, 120);
   }
 
-  function _closeSearch() {
-    _searchOpen = false;
-    el('search-bar').classList.remove('open');
-    el('btn-search-open').style.display = '';
-    el('search-input').value = '';
-    Search.clear();
-    _updateSearchCount(0, 0);
+  function _setActiveSideTab(tab) {
+    _activeSideTab = tab;
+
+    // Update title
+    const titles = {
+      thumbnails: 'Page Previews',
+      tools:      'Page Tools',
+      search:     'Search in Document',
+      bookmarks:  'Bookmarks & Outline',
+    };
+    el('side-panel-title').textContent = titles[tab] || 'Side Panel';
+
+    // Switch view
+    el('panel-view-thumbnails').style.display = tab === 'thumbnails' ? 'block' : 'none';
+    el('panel-view-tools').style.display      = tab === 'tools'      ? 'block' : 'none';
+    el('panel-view-search').style.display     = tab === 'search'     ? 'block' : 'none';
+    el('panel-view-bookmarks').style.display  = tab === 'bookmarks'  ? 'block' : 'none';
+
+    // Update right strip buttons
+    document.querySelectorAll('.strip-tab-btn[data-tab]').forEach(btn => {
+      btn.classList.toggle('active', _sidePanelOpen && btn.dataset.tab === tab);
+    });
   }
 
-  function _updateSearchCount(current, total) {
-    const countEl = el('search-count');
-    if (!countEl) return;
-    countEl.textContent = total > 0 ? `${current}/${total}` : (el('search-input').value ? 'Not found' : '');
+  function _setSidePanel(open) {
+    _sidePanelOpen = open;
+    const panel = el('side-panel');
+    if (panel) panel.classList.toggle('collapsed', !open);
+
+    // Sync strip tab button active highlights
+    document.querySelectorAll('.strip-tab-btn[data-tab]').forEach(btn => {
+      btn.classList.toggle('active', open && btn.dataset.tab === _activeSideTab);
+    });
+
+    if (open && _activeSideTab === 'search') {
+      setTimeout(() => {
+        const input = el('side-search-input');
+        if (input) input.focus();
+      }, 100);
+    }
   }
 
-  // ── Page tools ────────────────────────────────────────────────────────────
-  function _bindPageTools() {
-    _bindDropdown('btn-page-tools', 'page-tools-menu');
+  function _updateSideSearch(current, total, query = '') {
+    const countEl   = el('side-search-count');
+    const resultsEl = el('side-search-results');
+    if (countEl) countEl.textContent = total > 0 ? `${current}/${total}` : (query ? '0 found' : '');
 
+    if (!resultsEl) return;
+    if (!query) {
+      resultsEl.innerHTML = '<p class="panel-empty-hint">Type a word or phrase above to search inside this PDF.</p>';
+      return;
+    }
+    if (total === 0) {
+      resultsEl.innerHTML = '<p class="panel-empty-hint">No matches found for "' + query.replace(/</g, '&lt;') + '".</p>';
+      return;
+    }
+
+    resultsEl.innerHTML = `
+      <div class="search-result-item" title="Jump through matches">
+        <div class="search-result-item__page">Showing match ${current} of ${total}</div>
+        <div class="search-result-item__desc">Press Enter to go to the next match or Shift+Enter for previous.</div>
+      </div>
+    `;
+  }
+
+  // ── Page tools actions (Rotate, Delete, Merge, Split) ──────────────────────
+  function _bindPageToolsActions() {
     el('btn-rotate-cw').addEventListener('click',  () => _rotatePage('cw'));
     el('btn-rotate-ccw').addEventListener('click', () => _rotatePage('ccw'));
     el('btn-delete-page').addEventListener('click', _deletePage);
@@ -435,7 +547,6 @@ const App = (() => {
   }
 
   async function _rotatePage(direction) {
-    _closeDropdown('page-tools-menu');
     const bytes    = PdfViewer.getPdfBytes();
     const pageIdx  = PdfViewer.getCurrentPage() - 1;
     if (!bytes) return;
@@ -450,7 +561,6 @@ const App = (() => {
   }
 
   async function _deletePage() {
-    _closeDropdown('page-tools-menu');
     const bytes   = PdfViewer.getPdfBytes();
     const pageIdx = PdfViewer.getCurrentPage() - 1;
     const total   = PdfViewer.getTotalPages();
@@ -485,7 +595,6 @@ const App = (() => {
   }
 
   function _openSplitModal() {
-    _closeDropdown('page-tools-menu');
     const modal = el('modal-split');
     el('split-range').value = '';
     modal.style.display = 'flex';
@@ -517,7 +626,6 @@ const App = (() => {
     }
   }
 
-  /** Called by PdfViewer when user drags thumbnails to reorder */
   async function reorderPages(newOrder) {
     const bytes = PdfViewer.getPdfBytes();
     if (!bytes) return;
@@ -604,24 +712,19 @@ const App = (() => {
       const ctrl    = e.ctrlKey || e.metaKey;
       const inInput = ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName);
 
-      // Don't hijack typing in text fields
       if (inInput && !ctrl) return;
 
       switch (true) {
         case ctrl && e.key === 'o': e.preventDefault(); el('file-input').click(); break;
         case ctrl && e.key === 's': e.preventDefault(); _savePdf(); break;
         case ctrl && e.key === 'p': e.preventDefault(); window.print(); break;
-        case ctrl && e.key === 'f': e.preventDefault(); _openSearch(); break;
+        case ctrl && e.key === 'f': e.preventDefault(); _openSearchPanel(); break;
         case ctrl && e.key === 'z':
           e.preventDefault();
           Annotations.undo(PdfViewer.getCurrentPage() - 1);
           if (typeof TextSelection !== 'undefined') TextSelection.undo(PdfViewer.getCurrentPage() - 1);
           break;
         case ctrl && e.shiftKey && e.key.toLowerCase() === 'z':
-          e.preventDefault();
-          Annotations.redo(PdfViewer.getCurrentPage() - 1);
-          if (typeof TextSelection !== 'undefined') TextSelection.redo(PdfViewer.getCurrentPage() - 1);
-          break;
         case ctrl && e.key === 'y':
           e.preventDefault();
           Annotations.redo(PdfViewer.getCurrentPage() - 1);
@@ -649,7 +752,7 @@ const App = (() => {
         case !ctrl && e.key === 'Backspace':
           if (!inInput) Annotations.deleteSelected(PdfViewer.getCurrentPage() - 1);
           break;
-        case !ctrl && e.key === 'Escape': _closeSearch(); break;
+        case !ctrl && e.key === 'Escape': _setSidePanel(false); break;
       }
     });
 
@@ -672,7 +775,6 @@ const App = (() => {
     btn.addEventListener('click', e => {
       e.stopPropagation();
       const isOpen = menu.classList.contains('open');
-      // Close all open dropdowns
       document.querySelectorAll('.tb-dropdown__menu.open').forEach(m => m.classList.remove('open'));
       if (!isOpen) menu.classList.add('open');
     });
@@ -683,7 +785,6 @@ const App = (() => {
     if (menu) menu.classList.remove('open');
   }
 
-  // Close all dropdowns when clicking outside
   document.addEventListener('click', () => {
     document.querySelectorAll('.tb-dropdown__menu.open').forEach(m => m.classList.remove('open'));
   });
@@ -696,14 +797,6 @@ const App = (() => {
     el('btn-theme').title         = theme === 'dark'
       ? 'Switch to light mode'
       : 'Switch to dark mode';
-  }
-
-  // ── Sidebar ───────────────────────────────────────────────────────────────
-  function _setSidebar(open) {
-    const sidebar = document.getElementById('sidebar');
-    if (sidebar) sidebar.classList.toggle('collapsed', !open);
-    const btn = el('btn-sidebar');
-    if (btn) btn.setAttribute('aria-pressed', open ? 'true' : 'false');
   }
 
   // ── Recent files ──────────────────────────────────────────────────────────
@@ -736,8 +829,6 @@ const App = (() => {
         <span class="recent-files__date">${date}</span>
         <span class="recent-files__page">p.${file.lastPage}</span>
       `;
-      // Clicking a recent file entry opens the file picker
-      // (we can't re-open the file directly without the File API)
       li.title = 'Click Open PDF to open this file and resume at page ' + file.lastPage;
       li.addEventListener('click', () => {
         el('file-input').click();
@@ -765,6 +856,6 @@ const App = (() => {
   // ── DOMContentLoaded ──────────────────────────────────────────────────────
   document.addEventListener('DOMContentLoaded', init);
 
-  // ── Public API ────────────────────────────────────────────────────────────
+  // ── Public API ────────────────────────────────────────────────────
   return { showToast, reorderPages };
 })();

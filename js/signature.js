@@ -1,5 +1,5 @@
 /* =============================================================================
-   PDFy – Signature Module
+   PidiFie – Signature Module
    Handles the signature drawing canvas (modal), saves/loads from IndexedDB,
    and coordinates with Annotations.placeSignature().
    ============================================================================= */
