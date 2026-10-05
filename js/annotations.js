@@ -63,6 +63,13 @@ const Annotations = (() => {
       enableRetinaScaling:    false,
     });
 
+    if (fc.wrapperEl) {
+      fc.wrapperEl.classList.add('canvas-container');
+      fc.wrapperEl.style.position = 'absolute';
+      fc.wrapperEl.style.top = '0';
+      fc.wrapperEl.style.left = '0';
+    }
+
     _canvases[pageIndex] = fc;
     _history[pageIndex]  = { undo: [], redo: [] };
 
@@ -89,6 +96,9 @@ const Annotations = (() => {
   function setTool(tool) {
     _currentTool = tool;
     Object.keys(_canvases).forEach(pi => _applyTool(parseInt(pi)));
+    document.querySelectorAll('.page-wrapper').forEach(w => {
+      w.dataset.tool = tool;
+    });
   }
 
   function setColor(color)   { _currentColor = color; }
@@ -99,9 +109,19 @@ const Annotations = (() => {
     const fc = _canvases[pageIndex];
     if (!fc) return;
 
+    const isSelect = (_currentTool === 'select');
+
+    // Pointer events on Fabric wrapper & upper canvas
+    if (fc.wrapperEl) {
+      fc.wrapperEl.style.pointerEvents = isSelect ? 'none' : 'auto';
+    }
+    if (fc.upperCanvasEl) {
+      fc.upperCanvasEl.style.pointerEvents = isSelect ? 'none' : 'auto';
+    }
+
     // Reset to defaults
     fc.isDrawingMode = false;
-    fc.selection     = true;
+    fc.selection     = !isSelect;
     fc.defaultCursor = 'default';
 
     switch (_currentTool) {
@@ -132,7 +152,7 @@ const Annotations = (() => {
 
       case 'select':
       default:
-        // Default: select & move
+        fc.selection = false;
         break;
     }
   }

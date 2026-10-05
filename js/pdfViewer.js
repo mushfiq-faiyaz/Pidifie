@@ -217,6 +217,7 @@ const PdfViewer = (() => {
     // Set wrapper size in CSS (logical) pixels
     wrapper.style.width  = cssW + 'px';
     wrapper.style.height = cssH + 'px';
+    wrapper.style.setProperty('--scale-factor', _scale);
 
     // Remove existing pdf canvas if re-rendering (zoom etc.)
     const existingCanvas = wrapper.querySelector('.pdf-canvas');
@@ -265,7 +266,7 @@ const PdfViewer = (() => {
 
     // Build/update selectable text layer for this page
     if (typeof TextSelection !== 'undefined') {
-      TextSelection.renderTextLayer(pageNum - 1, wrapper, viewport);
+      await TextSelection.renderTextLayer(pageNum - 1, wrapper, viewport);
     }
   }
 

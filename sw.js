@@ -4,7 +4,7 @@
    Strategy: Cache-first for static assets, network-first for CDN libraries.
    ============================================================================= */
 
-const CACHE_VERSION = 'pdfy-v2';
+const CACHE_VERSION = 'pdfy-v3';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const CDN_CACHE    = `${CACHE_VERSION}-cdn`;
 

@@ -33,9 +33,12 @@ const TextSelection = (() => {
     _getScale = getScale;
     _getWrapper = getWrapper;
     _createToolbar();
-    // Install a single document-level selection listener (idempotent)
+    // Install document-level selection listeners (idempotent)
     if (!init._selListenerAttached) {
       document.addEventListener('selectionchange', _onGlobalSelectionChange);
+      document.addEventListener('mouseup', () => {
+        setTimeout(_onGlobalSelectionChange, 10);
+      });
       init._selListenerAttached = true;
     }
   }
@@ -71,6 +74,7 @@ const TextSelection = (() => {
     textDiv.className = 'textLayer';
     textDiv.style.width  = viewport.width  + 'px';
     textDiv.style.height = viewport.height + 'px';
+    textDiv.style.setProperty('--scale-factor', viewport.scale);
     wrapper.appendChild(textDiv);
 
     // Render using PDF.js renderTextLayer
@@ -109,27 +113,28 @@ const TextSelection = (() => {
   // ── Selection events & floating toolbar ───────────────────────────────────
   function _attachSelectionEvents(pageIndex, wrapper) {
     // Selection is handled globally by _onGlobalSelectionChange (set up in init).
-    // This function is a no-op placeholder kept for clarity.
   }
 
   function _onGlobalSelectionChange() {
     const sel = window.getSelection();
-    if (!sel || sel.isCollapsed || !sel.toString().trim()) {
+    if (!sel || sel.isCollapsed || !sel.toString().trim() || !sel.rangeCount) {
       setTimeout(() => {
         const s2 = window.getSelection();
         if (!s2 || s2.isCollapsed || !s2.toString().trim()) _hideToolbar();
-      }, 200);
+      }, 150);
       return;
     }
 
-    // Find which page-wrapper the selection anchor lives in
+    // Find which page-wrapper the selection anchor or focus lives in
     const anchor = sel.anchorNode;
-    if (!anchor) return;
+    const focus  = sel.focusNode;
+    const node   = anchor || focus;
+    if (!node) return;
 
     const wrappers = document.querySelectorAll('.page-wrapper');
     for (const wrapper of wrappers) {
       const textDiv = wrapper.querySelector('.textLayer');
-      if (textDiv && textDiv.contains(anchor)) {
+      if (textDiv && (textDiv.contains(anchor) || textDiv.contains(focus))) {
         const pageIndex = parseInt(wrapper.dataset.pageIndex);
         if (!isNaN(pageIndex)) {
           _showToolbar(sel, pageIndex, wrapper);
@@ -178,7 +183,6 @@ const TextSelection = (() => {
     // Hide when clicking elsewhere
     document.addEventListener('mousedown', e => {
       if (_toolbar && !_toolbar.contains(e.target)) {
-        // Small delay so toolbar button clicks still register
         setTimeout(_hideToolbar, 50);
       }
     });
@@ -186,20 +190,35 @@ const TextSelection = (() => {
 
   function _showToolbar(sel, pageIndex, wrapper) {
     if (!_toolbar) return;
+    if (!sel || sel.isCollapsed || !sel.rangeCount) return;
     const range = sel.getRangeAt(0);
     const rect  = range.getBoundingClientRect();
+    if (!rect || (rect.width === 0 && rect.height === 0)) return;
 
     _toolbar.dataset.pageIndex = pageIndex;
 
-    // Position above the selection
-    const x = rect.left + rect.width / 2;
-    const y = rect.top  - 8;
+    const toolbarW = 340;
+    const toolbarH = 38;
+
+    // Center horizontally over the selection range, clamped within screen bounds
+    let x = rect.left + rect.width / 2;
+    x = Math.max(toolbarW / 2 + 12, Math.min(window.innerWidth - toolbarW / 2 - 12, x));
+
+    // Position above the selection if room, otherwise below
+    const topBarHeight = 100; // top main + annotation toolbar
+    let y = rect.top - 10;
+    if (y - toolbarH < topBarHeight) {
+      // Not enough room above, position right below selection
+      y = rect.bottom + 10;
+      _toolbar.style.transform = 'translateX(-50%) translateY(0)';
+    } else {
+      _toolbar.style.transform = 'translateX(-50%) translateY(-100%)';
+    }
 
     _toolbar.style.left    = x + 'px';
     _toolbar.style.top     = y + 'px';
     _toolbar.style.display = 'flex';
     _toolbar.style.opacity = '1';
-    _toolbar.style.transform = 'translateX(-50%) translateY(-100%)';
   }
 
   function _hideToolbar() {
@@ -217,9 +236,11 @@ const TextSelection = (() => {
     const wrapper = _getWrapper(pageIndex);
     if (!wrapper) return;
 
-    // Collect bounding rects for each line of the selection
+    const scale = (_getScale ? _getScale() : 1) || 1;
+
+    // Collect bounding rects for each line of the selection (normalized to scale 1.0)
     const range  = sel.getRangeAt(0);
-    const rects  = _getLineRects(range, wrapper);
+    const rects  = _getLineRects(range, wrapper, scale);
     if (!rects.length) return;
 
     const markup = { type, color: _currentColor, rects };
@@ -235,19 +256,19 @@ const TextSelection = (() => {
 
   /**
    * Convert a DOM Range to an array of {x,y,w,h} rects relative to the
-   * page wrapper, one per visual line.
+   * page wrapper (normalized by scale), one per visual line.
    */
-  function _getLineRects(range, wrapper) {
+  function _getLineRects(range, wrapper, scale = 1) {
     const wrapRect = wrapper.getBoundingClientRect();
     const clientRects = Array.from(range.getClientRects());
     const out = [];
     for (const cr of clientRects) {
       if (cr.width < 1 || cr.height < 1) continue;
       out.push({
-        x: cr.left - wrapRect.left,
-        y: cr.top  - wrapRect.top,
-        w: cr.width,
-        h: cr.height,
+        x: (cr.left - wrapRect.left) / scale,
+        y: (cr.top  - wrapRect.top)  / scale,
+        w: cr.width  / scale,
+        h: cr.height / scale,
       });
     }
     return _mergeAdjacentRects(out);
@@ -283,9 +304,11 @@ const TextSelection = (() => {
     const markups = _markups[pageIndex];
     if (!markups || !markups.length) return;
 
+    const scale = (_getScale ? _getScale() : 1) || 1;
+
     layer = document.createElement('div');
     layer.className = 'markup-layer';
-    layer.style.cssText = 'position:absolute;left:0;top:0;right:0;bottom:0;pointer-events:none;z-index:3;overflow:hidden;';
+    layer.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:3;overflow:hidden;';
 
     for (const m of markups) {
       for (const r of m.rects) {
@@ -297,19 +320,24 @@ const TextSelection = (() => {
           : 0.7
         );
 
+        const x = r.x * scale;
+        const y = r.y * scale;
+        const w = r.w * scale;
+        const h = r.h * scale;
+
         if (m.type === 'highlight') {
-          div.style.cssText = `left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px;background:${rgba};`;
+          div.style.cssText = `left:${x}px;top:${y}px;width:${w}px;height:${h}px;background:${rgba};`;
         } else if (m.type === 'underline') {
-          div.style.cssText = `left:${r.x}px;top:${r.y + r.h - 2}px;width:${r.w}px;height:2px;background:${rgba};`;
+          div.style.cssText = `left:${x}px;top:${y + h - 2}px;width:${w}px;height:2px;background:${rgba};`;
         } else if (m.type === 'strikethrough') {
-          div.style.cssText = `left:${r.x}px;top:${r.y + r.h * 0.5 - 1}px;width:${r.w}px;height:2px;background:${rgba};`;
+          div.style.cssText = `left:${x}px;top:${y + h * 0.5 - 1}px;width:${w}px;height:2px;background:${rgba};`;
         }
         layer.appendChild(div);
       }
     }
 
-    // Insert before the annotation canvas (z-index 3 < 4)
-    const annCanvas = wrapper.querySelector('.annotation-canvas');
+    // Insert before the annotation canvas / container (z-index 3 < 4)
+    const annCanvas = wrapper.querySelector('.canvas-container') || wrapper.querySelector('.annotation-canvas');
     if (annCanvas && annCanvas.parentNode === wrapper) {
       wrapper.insertBefore(layer, annCanvas);
     } else {

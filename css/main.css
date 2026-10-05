@@ -486,6 +486,8 @@ code { font-family: 'Fira Code', 'Cascadia Code', monospace; background: var(--b
   border-radius: 2px;
   background: var(--bg-page);
   flex-shrink: 0;
+  user-select: text;
+  -webkit-user-select: text;
   /* width/height set by JS to match canvas */
 }
 
@@ -494,50 +496,71 @@ code { font-family: 'Fira Code', 'Cascadia Code', monospace; background: var(--b
   display: block;
   position: relative;
   z-index: 1;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
   /* Ensure crisp rendering – no browser smoothing on top of the HiDPI canvas */
   image-rendering: -webkit-optimize-contrast; /* Chromium */
   image-rendering: crisp-edges;               /* Firefox */
 }
 
 /* ── Text layer (PDF.js renderTextLayer) ── */
-/* The CDN stylesheet positions spans correctly; we override just colors */
 .page-wrapper .textLayer {
   position: absolute;
-  left: 0; top: 0;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  opacity: 1;
   z-index: 2;
-  /* Size set by JS to match viewport */
-  pointer-events: all;
+  pointer-events: auto;
   user-select: text;
   -webkit-user-select: text;
-  /* Text is transparent so the canvas shows through */
   color: transparent;
-  /* Cursor */
-  cursor: text;
+  cursor: default; /* Arrow over empty/blank areas */
+  line-height: 1;
+  -webkit-text-size-adjust: none;
+  -moz-text-size-adjust: none;
+  text-size-adjust: none;
+  forced-color-adjust: none;
+  transform-origin: 0 0;
 }
-/* PDF.js places <span> elements; make them selectable */
-.page-wrapper .textLayer span,
-.page-wrapper .textLayer br {
+/* PDF.js places <span> and <br> elements; make them selectable with text cursor */
+.page-wrapper .textLayer :is(span, br),
+.page-wrapper .textLayer span {
   color: transparent;
   position: absolute;
   white-space: pre;
-  cursor: text;
-  transform-origin: 0% 0%;
-  /* Keep text layer above canvas but below markups/annotations */
+  cursor: text; /* "I"-beam cursor over words */
+  transform-origin: 0 0;
+  pointer-events: auto;
 }
-/* Browser text selection highlight */
+.page-wrapper .textLayer .endOfContent {
+  display: block;
+  position: absolute;
+  inset: 100% 0 0;
+  z-index: -1;
+  cursor: default;
+  user-select: none;
+  -webkit-user-select: none;
+  pointer-events: none;
+}
+/* Browser text selection highlight – clean Adobe Acrobat style blue */
 .page-wrapper .textLayer ::selection {
-  background: rgba(0, 100, 255, 0.25);
+  background: rgba(0, 100, 255, 0.35);
   color: transparent;
 }
 .page-wrapper .textLayer ::-moz-selection {
-  background: rgba(0, 100, 255, 0.25);
+  background: rgba(0, 100, 255, 0.35);
   color: transparent;
 }
 
 /* ── Markup layer (highlight / underline / strikethrough) ── */
 .markup-layer {
   position: absolute;
-  left: 0; top: 0;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   pointer-events: none;
   z-index: 3;
   overflow: hidden;
@@ -561,7 +584,24 @@ code { font-family: 'Fira Code', 'Cascadia Code', monospace; background: var(--b
   border-color: rgba(255, 120, 0, 0.9);
 }
 
-/* Fabric annotation canvas */
+/* Fabric annotation canvas and container */
+.page-wrapper .canvas-container {
+  position: absolute !important;
+  left: 0;
+  top: 0;
+  z-index: 4;
+  border-radius: 2px;
+  pointer-events: none;
+}
+.page-wrapper[data-tool="pen"] .canvas-container,
+.page-wrapper[data-tool="text"] .canvas-container,
+.page-wrapper[data-tool="note"] .canvas-container,
+.page-wrapper[data-tool="sign"] .canvas-container,
+.page-wrapper[data-tool="highlight"] .canvas-container,
+.page-wrapper[data-tool="underline"] .canvas-container,
+.page-wrapper[data-tool="strikethrough"] .canvas-container {
+  pointer-events: auto;
+}
 .page-wrapper .annotation-canvas {
   position: absolute;
   inset: 0;
