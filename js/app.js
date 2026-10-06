@@ -756,12 +756,23 @@ const App = (() => {
       }
     });
 
-    // Mouse wheel zoom (Ctrl + scroll)
+    // Mouse wheel / trackpad pinch zoom (Ctrl + scroll)
     document.getElementById('viewer').addEventListener('wheel', e => {
       if (e.ctrlKey) {
         e.preventDefault();
-        if (e.deltaY < 0) PdfViewer.zoomIn();
-        else              PdfViewer.zoomOut();
+
+        // Normalise delta across deltaMode values.
+        // deltaMode 0 = pixels, 1 = lines (~16px each), 2 = pages (~600px)
+        let delta = e.deltaY;
+        if (e.deltaMode === 1) delta *= 16;
+        else if (e.deltaMode === 2) delta *= 600;
+
+        // Compute cursor position relative to the viewer element.
+        const rect = document.getElementById('viewer').getBoundingClientRect();
+        const ax   = e.clientX - rect.left;
+        const ay   = e.clientY - rect.top;
+
+        PdfViewer.zoomByDelta(delta, ax, ay);
       }
     }, { passive: false });
   }

@@ -34,6 +34,10 @@ const PdfViewer = (() => {
   // Track how many background renders are still running for the current load.
   let _pendingRenders = 0;
 
+  // When > 0, the scroll listener must not update _currentPage (we are
+  // programmatically setting scroll as part of a zoom operation).
+  let _suppressScrollDetect = 0;
+
   // DOM refs
   const _container    = () => document.getElementById('pages-container');
   const _thumbContainer = () => document.getElementById('thumbnail-container');
@@ -198,8 +202,8 @@ const PdfViewer = (() => {
   }
 
   async function _renderPage(pageNum, capturedGen) {
-    // capturedGen is optional (not provided when called from setZoom where we
-    // always want to render the current document).
+    // capturedGen is optional (not provided for zoom re-renders, which always
+    // target the current document).
     const checkGen = () => capturedGen !== undefined && _generation !== capturedGen;
 
     if (!_pdfDoc) return;
@@ -218,16 +222,13 @@ const PdfViewer = (() => {
     const cssW = viewport.width;
     const cssH = viewport.height;
 
-    // Set wrapper size in CSS (logical) pixels
-    wrapper.style.width  = cssW + 'px';
-    wrapper.style.height = cssH + 'px';
-    wrapper.style.setProperty('--scale-factor', _scale);
+    // ── NO-FLASH STRATEGY ─────────────────────────────────────────────────
+    // Keep any existing pdf-canvas visible until the new render is complete.
+    // Only after the new canvas is fully rendered do we remove the old one and
+    // swap it in.  This eliminates the white-flash during zoom re-renders.
+    const oldCanvas = wrapper.querySelector('.pdf-canvas');
 
-    // Remove existing pdf canvas if re-rendering (zoom etc.)
-    const existingCanvas = wrapper.querySelector('.pdf-canvas');
-    if (existingCanvas) existingCanvas.remove();
-
-    // Create HiDPI canvas
+    // Create new HiDPI canvas — NOT yet inserted into the DOM.
     const canvas     = document.createElement('canvas');
     canvas.className = 'pdf-canvas';
     canvas.width     = Math.round(cssW * dpr);   // physical pixels
@@ -235,23 +236,11 @@ const PdfViewer = (() => {
     canvas.style.width  = cssW + 'px';           // CSS display size
     canvas.style.height = cssH + 'px';
 
-    // Insert before any existing annotation canvas.
-    // IMPORTANT: querySelector can return a node that was detached from
-    // wrapper between the call and insertBefore (e.g. if Fabric disposed the
-    // canvas or a concurrent cleanup ran).  Always verify it is still a
-    // direct child before using it.
-    const annCanvas = wrapper.querySelector('.annotation-canvas');
-    if (annCanvas && annCanvas.parentNode === wrapper) {
-      wrapper.insertBefore(canvas, annCanvas);
-    } else {
-      wrapper.appendChild(canvas);
-    }
-
-    // Scale context for HiDPI before rendering
+    // Scale context for HiDPI before rendering.
     const ctx = canvas.getContext('2d');
     ctx.scale(dpr, dpr);
 
-    // Render at the logical scale – ctx.scale handles physical pixel density
+    // Render at the logical scale – ctx.scale handles physical pixel density.
     const renderTask = page.render({ canvasContext: ctx, viewport });
     _renderTasks[pageNum] = renderTask;
 
@@ -259,16 +248,39 @@ const PdfViewer = (() => {
       await renderTask.promise;
     } catch (e) {
       if (e.name !== 'RenderingCancelledException') console.error('Render error:', e);
-      return; // don't call initPage if the render was cancelled
+      return; // don't swap canvases if render was cancelled
     }
 
     // Bail out if a newer load started while we were awaiting the render.
     if (checkGen()) return;
 
-    // Build/update annotation layer for this page
+    // ── UPDATE WRAPPER SIZE then ATOMIC CANVAS SWAP ───────────────────────
+    // Set wrapper size to final rendered size.
+    wrapper.style.width  = cssW + 'px';
+    wrapper.style.height = cssH + 'px';
+    wrapper.style.setProperty('--scale-factor', _scale);
+    // Record rendered scale + CSS dimensions so _cssScaleWrappers can
+    // compute the exact ratio on the next gesture without reading stale values.
+    wrapper.dataset.renderedScale  = String(_scale);
+    canvas.dataset.renderedCssW    = String(cssW);
+    canvas.dataset.renderedCssH    = String(cssH);
+
+    // Insert new canvas before any annotation canvas, then remove the old one.
+    // The old canvas stays in the DOM until now, preventing the blank flash.
+    const annCanvas = wrapper.querySelector('.annotation-canvas');
+    if (annCanvas && annCanvas.parentNode === wrapper) {
+      wrapper.insertBefore(canvas, annCanvas);
+    } else {
+      wrapper.appendChild(canvas);
+    }
+    if (oldCanvas && oldCanvas.parentNode === wrapper) {
+      oldCanvas.remove();
+    }
+
+    // Build/update annotation layer for this page.
     Annotations.initPage(pageNum - 1, wrapper, cssW, cssH);
 
-    // Build/update selectable text layer for this page
+    // Build/update selectable text layer for this page.
     if (typeof TextSelection !== 'undefined') {
       await TextSelection.renderTextLayer(pageNum - 1, wrapper, viewport);
     }
@@ -374,19 +386,266 @@ const PdfViewer = (() => {
   }
 
   // ── Zoom ──────────────────────────────────────────────────────────────────
+  //
+  // DESIGN: All zoom paths funnel into _performZoom(newScale, anchorX, anchorY).
+  //
+  // The anchor is expressed in VIEWER-RELATIVE pixels (the point on screen that
+  // should stay fixed).  Before changing the scale we convert it into
+  // PAGE-SPACE coordinates:  { pageIndex, fracX, fracY }  where fracX/fracY
+  // are fractions of that page's current CSS size (0..1).  After every scale
+  // or scroll change we can always recompute:
+  //   new scrollTop = pageWrapper.offsetTop + fracY * pageWrapper.offsetHeight - anchorY
+  // This is immune to gaps, padding, and layout reflows.
+  //
+  // During a fast wheel/pinch gesture:
+  //   – We CSS-stretch pages immediately for instant visual response.
+  //   – We set scrollTop immediately using the anchor formula.
+  //   – We debounce a full PDF.js re-render (~200 ms after last wheel event).
+  //
+  // After the re-render completes we apply the anchor formula one more time
+  // to correct any sub-pixel drift introduced by the re-render layout pass.
+  //
+  // We suppress _detectCurrentPage() (the scroll listener) during the entire
+  // zoom operation so _currentPage never flickers.
+
+  let _zoomDebounceTimer = null;
+  let _zoomCommitGen     = 0;   // incremented on each new commit so stale ones abort
+
+  // The last-known anchor in page-space. Cleared after commit restores scroll.
+  let _zoomAnchor = null; // { pageIndex, fracX, fracY, viewerAX, viewerAY }
+
   /**
-   * Set zoom and re-render all pages.
-   * @param {number|'fit-width'|'fit-page'} zoom
+   * Convert a viewer-relative point (ax, ay) into page-space coordinates.
+   * Returns null if no page is found at that point.
+   */
+  function _toPageSpace(ax, ay) {
+    const viewer = _viewer();
+    // Absolute position in the scrollable content
+    const absX = viewer.scrollLeft + ax;
+    const absY = viewer.scrollTop  + ay;
+
+    // Find which page wrapper the point falls on (or nearest one).
+    let best = null;
+    let bestDist = Infinity;
+
+    Object.entries(_pageWrappers).forEach(([idxStr, wrapper]) => {
+      const top    = wrapper.offsetTop;
+      const left   = wrapper.offsetLeft;
+      const width  = wrapper.offsetWidth;
+      const height = wrapper.offsetHeight;
+      const bottom = top + height;
+      const right  = left + width;
+
+      // Vertical distance from this page (0 if the point is inside the page)
+      const dy = absY < top ? top - absY : absY > bottom ? absY - bottom : 0;
+      const dx = absX < left ? left - absX : absX > right ? absX - right : 0;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = {
+          pageIndex: parseInt(idxStr),
+          fracX: width  > 0 ? (absX - left)   / width  : 0,
+          fracY: height > 0 ? (absY - top)     / height : 0,
+        };
+      }
+    });
+
+    return best;
+  }
+
+  /**
+   * Given a saved page-space anchor, compute the scrollTop that places
+   * viewerAY at the same visual spot.
+   */
+  function _scrollTopFromAnchor(anchor) {
+    const wrapper = _pageWrappers[anchor.pageIndex];
+    if (!wrapper) return null;
+    const top    = wrapper.offsetTop;
+    const height = wrapper.offsetHeight;
+    return top + anchor.fracY * height - anchor.viewerAY;
+  }
+
+  function _scrollLeftFromAnchor(anchor) {
+    const wrapper = _pageWrappers[anchor.pageIndex];
+    if (!wrapper) return null;
+    const left  = wrapper.offsetLeft;
+    const width = wrapper.offsetWidth;
+    return left + anchor.fracX * width - anchor.viewerAX;
+  }
+
+  /**
+   * CSS-scale every page wrapper to reflect the current _scale, WITHOUT
+   * triggering a PDF.js re-render.  Gives instant visual feedback during a
+   * gesture.  Uses the wrapper's last-rendered scale (stamped at render time)
+   * to compute the correct ratio, so it is safe to call many times rapidly.
+   */
+  function _cssScaleWrappers() {
+    Object.values(_pageWrappers).forEach(wrapper => {
+      const canvas = wrapper.querySelector('.pdf-canvas');
+      if (!canvas) return;
+
+      // renderedScale: the PDF.js scale at which this canvas was last rendered.
+      const renderedScale = parseFloat(wrapper.dataset.renderedScale);
+      if (!renderedScale) return; // page not rendered yet — skip
+
+      // renderedCssW/H: the exact CSS size the canvas was rendered at.
+      // These are stamped by _renderPage immediately after each render, so
+      // they always reflect the true last-rendered dimensions regardless of
+      // any intermediate CSS-scaling that happened during prior gestures.
+      const renderedW = parseFloat(canvas.dataset.renderedCssW);
+      const renderedH = parseFloat(canvas.dataset.renderedCssH);
+      if (!renderedW || !renderedH) return;
+
+      const ratio = _scale / renderedScale;
+      const newW  = renderedW * ratio;
+      const newH  = renderedH * ratio;
+
+      wrapper.style.width  = newW + 'px';
+      wrapper.style.height = newH + 'px';
+      wrapper.style.setProperty('--scale-factor', _scale);
+
+      canvas.style.width  = newW + 'px';
+      canvas.style.height = newH + 'px';
+
+      const annCanvas = wrapper.querySelector('.annotation-canvas');
+      if (annCanvas) {
+        annCanvas.style.width  = newW + 'px';
+        annCanvas.style.height = newH + 'px';
+      }
+    });
+  }
+
+  /**
+   * Central zoom entry point.
+   *
+   * @param {number} newScale     Target scale (will be clamped to 0.1..5.0)
+   * @param {number} [viewerAX]   Viewer-relative X of the point to keep fixed
+   * @param {number} [viewerAY]   Viewer-relative Y of the point to keep fixed
+   */
+  function _performZoom(newScale, viewerAX, viewerAY) {
+    if (!_pdfDoc) return;
+
+    newScale = Math.max(0.1, Math.min(5.0, newScale));
+    if (Math.abs(newScale - _scale) < 1e-6) return;
+
+    const viewer = _viewer();
+
+    // Default anchor: centre of the viewport
+    const ax = (viewerAX !== undefined) ? viewerAX : viewer.clientWidth  / 2;
+    const ay = (viewerAY !== undefined) ? viewerAY : viewer.clientHeight / 2;
+
+    // Capture anchor in page-space BEFORE changing any sizes.
+    const anchor = _toPageSpace(ax, ay);
+    if (!anchor) return; // no pages rendered yet
+
+    anchor.viewerAX = ax;
+    anchor.viewerAY = ay;
+    _zoomAnchor = anchor;
+
+    // Change the scale.
+    _scale = newScale;
+
+    // Instantly CSS-scale all wrappers so there's no blank flash.
+    _cssScaleWrappers();
+
+    // Immediately restore scroll using the anchor formula on the scaled layout.
+    // Because _cssScaleWrappers updated offsetWidth/Height synchronously (the
+    // browser does a partial layout after style changes in the same frame), we
+    // can compute the correct scrollTop right now.
+    _suppressScrollDetect++;
+    const st = _scrollTopFromAnchor(anchor);
+    const sl = _scrollLeftFromAnchor(anchor);
+    if (st !== null) viewer.scrollTop  = Math.max(0, st);
+    if (sl !== null) viewer.scrollLeft = Math.max(0, sl);
+    // Release suppress after the scroll event that our assignment fires.
+    requestAnimationFrame(() => { _suppressScrollDetect = Math.max(0, _suppressScrollDetect - 1); });
+
+    // Update zoom label immediately.
+    const zoomLabel = document.getElementById('zoom-label');
+    if (zoomLabel) zoomLabel.textContent = Math.round(_scale * 100) + '%';
+
+    // Debounce the expensive PDF.js re-render.
+    if (_zoomDebounceTimer) clearTimeout(_zoomDebounceTimer);
+    _zoomDebounceTimer = setTimeout(_commitZoom, 200);
+  }
+
+  /**
+   * Full re-render at the current _scale, then restore scroll precisely.
+   */
+  async function _commitZoom() {
+    _zoomDebounceTimer = null;
+    if (!_pdfDoc) return;
+
+    // Take a generation token so a newer zoom can abort this commit.
+    const myGen = ++_zoomCommitGen;
+
+    // Freeze page-detection for the whole commit.
+    _suppressScrollDetect++;
+
+    const viewer  = _viewer();
+    const anchor  = _zoomAnchor; // may be null for setZoom calls
+
+    // If we have an anchor, capture the current expected scrollTop so that
+    // even if layout shifts during async rendering we can correct afterwards.
+    // We also save the scroll position right now as a fallback.
+    const savedScrollTop  = viewer.scrollTop;
+    const savedScrollLeft = viewer.scrollLeft;
+
+    try {
+      // Wait for any background load renders (initial load) to finish.
+      while (_pendingRenders > 0) {
+        await new Promise(r => setTimeout(r, 5));
+      }
+      if (myGen !== _zoomCommitGen || !_pdfDoc) return;
+
+      // Re-render every page at crisp resolution.
+      // _renderPage handles the no-flash swap internally.
+      const total = _pdfDoc.numPages;
+      const renders = [];
+      for (let i = 1; i <= total; i++) renders.push(_renderPage(i));
+      await Promise.all(renders);
+
+      if (myGen !== _zoomCommitGen || !_pdfDoc) return;
+
+      // After all wrappers have their final offsetTop/Height, restore scroll.
+      if (anchor) {
+        const st = _scrollTopFromAnchor(anchor);
+        const sl = _scrollLeftFromAnchor(anchor);
+        if (st !== null) viewer.scrollTop  = Math.max(0, st);
+        if (sl !== null) viewer.scrollLeft = Math.max(0, sl);
+      } else {
+        // No anchor (e.g., initial load zoom restore) — keep saved position.
+        viewer.scrollTop  = savedScrollTop;
+        viewer.scrollLeft = savedScrollLeft;
+      }
+
+      _zoomAnchor = null;
+
+    } finally {
+      // Always release the suppress guard.
+      _suppressScrollDetect = Math.max(0, _suppressScrollDetect - 1);
+      // Snap current page to whatever is now centred.
+      _detectCurrentPage();
+    }
+  }
+
+  // ── Public zoom API ───────────────────────────────────────────────────────
+
+  /**
+   * Set an exact zoom level (number, 'fit-width', or 'fit-page').
+   * Anchors to the viewport centre (no cursor involved).
    */
   async function setZoom(zoom) {
     if (!_pdfDoc) return;
 
+    let newScale;
     if (zoom === 'fit-width') {
-      const viewer      = _viewer();
-      const page        = await _pdfDoc.getPage(1);
-      const baseVp      = page.getViewport({ scale: 1 });
-      const padding     = 48; // viewer padding × 2
-      _scale = (viewer.clientWidth - padding) / baseVp.width;
+      const viewer  = _viewer();
+      const page    = await _pdfDoc.getPage(1);
+      const baseVp  = page.getViewport({ scale: 1 });
+      const padding = 48;
+      newScale = (viewer.clientWidth - padding) / baseVp.width;
     } else if (zoom === 'fit-page') {
       const viewer  = _viewer();
       const page    = await _pdfDoc.getPage(1);
@@ -394,45 +653,60 @@ const PdfViewer = (() => {
       const padding = 48;
       const scaleX  = (viewer.clientWidth  - padding) / baseVp.width;
       const scaleY  = (viewer.clientHeight - padding) / baseVp.height;
-      _scale        = Math.min(scaleX, scaleY);
+      newScale      = Math.min(scaleX, scaleY);
     } else {
-      _scale = parseFloat(zoom);
+      newScale = parseFloat(zoom);
     }
 
-    _scale = Math.max(0.1, Math.min(_scale, 5.0));
+    newScale = Math.max(0.1, Math.min(5.0, newScale));
+    if (Math.abs(newScale - _scale) < 1e-6) return;
 
-    // Wait for any background renders still in flight from loadDocument to
-    // finish before we kick off our own re-render pass.  Without this,
-    // setZoom's _renderPage calls race with the background renders and can
-    // trigger the insertBefore crash.
-    while (_pendingRenders > 0) {
-      await new Promise(r => setTimeout(r, 5));
+    // Capture viewport-centre anchor before changing scale.
+    const viewer = _viewer();
+    const ax = viewer.clientWidth  / 2;
+    const ay = viewer.clientHeight / 2;
+    const anchor = _toPageSpace(ax, ay);
+    if (anchor) {
+      anchor.viewerAX = ax;
+      anchor.viewerAY = ay;
+      _zoomAnchor = anchor;
     }
 
-    if (!_pdfDoc) return; // guard: file may have been closed while draining
+    _scale = newScale;
 
-    // Re-render all pages at the new scale (no capturedGen — these are
-    // intentional re-renders for the current document).
-    const total = _pdfDoc.numPages;
-    const rerenders = [];
-    for (let i = 1; i <= total; i++) rerenders.push(_renderPage(i));
-    await Promise.all(rerenders);
-
-    // Update label
+    // Update zoom label.
     const zoomLabel = document.getElementById('zoom-label');
     if (zoomLabel) zoomLabel.textContent = Math.round(_scale * 100) + '%';
+
+    // Cancel any pending debounced commit and commit immediately (crisp render).
+    if (_zoomDebounceTimer) { clearTimeout(_zoomDebounceTimer); _zoomDebounceTimer = null; }
+    await _commitZoom();
   }
 
+  /** Step zoom in to next preset level (buttons / keyboard). */
   function zoomIn() {
     const steps = [0.25, 0.33, 0.5, 0.67, 0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5];
     const next  = steps.find(s => s > _scale + 0.01);
     setZoom(next || 5);
   }
 
+  /** Step zoom out to previous preset level (buttons / keyboard). */
   function zoomOut() {
     const steps = [0.25, 0.33, 0.5, 0.67, 0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5];
     const prev  = [...steps].reverse().find(s => s < _scale - 0.01);
     setZoom(prev || 0.25);
+  }
+
+  /**
+   * Continuous zoom driven by Ctrl+wheel or trackpad pinch.
+   * @param {number} delta    Raw deltaY (positive = scroll down = zoom out)
+   * @param {number} viewerAX Viewer-relative X of the pointer
+   * @param {number} viewerAY Viewer-relative Y of the pointer
+   */
+  function zoomByDelta(delta, viewerAX, viewerAY) {
+    // Logarithmic factor: 0.999^delta makes the zoom feel linear perceptually.
+    const factor = Math.pow(0.999, delta);
+    _performZoom(_scale * factor, viewerAX, viewerAY);
   }
 
   // ── Bookmarks ─────────────────────────────────────────────────────────────
@@ -513,6 +787,7 @@ const PdfViewer = (() => {
 
     let scrollTimer = null;
     viewer.addEventListener('scroll', () => {
+      if (_suppressScrollDetect > 0) return; // zoom is in progress – skip
       if (scrollTimer) clearTimeout(scrollTimer);
       scrollTimer = setTimeout(() => {
         _detectCurrentPage();
@@ -567,7 +842,7 @@ const PdfViewer = (() => {
   // ── Public API ────────────────────────────────────────────────────────────
   return {
     loadDocument, updateBytes,
-    setZoom, zoomIn, zoomOut,
+    setZoom, zoomIn, zoomOut, zoomByDelta,
     goToPage, nextPage, prevPage,
     getPdfDoc, getPdfBytes, getScale, getFileName,
     getCurrentPage, getTotalPages, getPageWrapper,
